@@ -1,0 +1,17 @@
+{
+  "name": "beman-closed-view",
+  "version-semver": "@VERSION@",
+  "description": "Range adaptors that adapts closed ranges into half-open ranges",
+  "homepage": "https://github.com/bemanproject/closed_view",
+  "license": "Apache-2.0 WITH LLVM-exception",
+  "dependencies": [
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    },
+    {
+      "name": "vcpkg-cmake-config",
+      "host": true
+    }
+  ]
+}
