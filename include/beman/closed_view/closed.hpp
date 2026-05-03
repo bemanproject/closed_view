@@ -8,6 +8,7 @@
 #include <functional>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <ranges>
 #include <type_traits>
 #include <utility>
@@ -257,16 +258,61 @@ concept dereferenceable // exposition only
           { *t } -> can_reference; // not required to be equality-preserving
       };
 
+template <class R>
+concept simple_view = // exposition only
+    std::ranges::view<R> && std::ranges::range<const R> &&
+    std::same_as<std::ranges::iterator_t<R>, std::ranges::iterator_t<const R>> &&
+    std::same_as<std::ranges::sentinel_t<R>, std::ranges::sentinel_t<const R>>;
+
 // conditionally present iterator_category
 template <typename I>
 struct category_base {};
 template <typename I>
-    requires requires { typename std::iterator_traits<I>::iterator_category; }
+    requires std::derived_from<typename std::iterator_traits<I>::iterator_category, std::forward_iterator_tag>
 struct category_base<I> {
-    using iterator_category = std::conditional_t<
-        std::derived_from<std::forward_iterator_tag, typename std::iterator_traits<I>::iterator_category>,
-        std::forward_iterator_tag,
-        typename std::iterator_traits<I>::iterator_category>;
+    using iterator_category = std::forward_iterator_tag;
+};
+
+template <typename T>
+struct is_empty_view_t : std::false_type {};
+template <typename T>
+struct is_empty_view_t<std::ranges::empty_view<T>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_empty_view = is_empty_view_t<T>::value;
+
+#if __cpp_lib_ranges_repeat >= 202207L
+template <typename T>
+struct is_repeat_view_t : std::false_type {};
+template <typename T, typename Bound>
+struct is_repeat_view_t<std::ranges::repeat_view<T, Bound>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_repeat_view = is_repeat_view_t<T>::value;
+#endif
+
+template <typename T>
+struct empty_traits {
+    static constexpr bool is_specialized = false;
+};
+template <typename T, std::size_t N>
+struct empty_traits<std::span<T, N>> {
+    static constexpr bool is_specialized = true;
+    using specialization                 = std::span<T>;
+};
+template <typename CharT, typename Traits>
+struct empty_traits<std::basic_string_view<CharT, Traits>> {
+    static constexpr bool is_specialized = true;
+    using specialization                 = std::basic_string_view<CharT, Traits>;
+};
+template <typename I, typename S, std::ranges::subrange_kind K>
+struct empty_traits<std::ranges::subrange<I, S, K>> {
+    static constexpr bool is_specialized = true;
+    using specialization = std::ranges::subrange<std::ranges::iterator_t<std::ranges::subrange<I, S, K>>>;
+};
+template <typename W, typename Bound>
+    requires std::ranges::random_access_range<std::ranges::iota_view<W, Bound>> &&
+             std::ranges::sized_range<std::ranges::iota_view<W, Bound>>
+struct empty_traits<std::ranges::iota_view<W, Bound>> {
+    static constexpr bool is_specialized = true;
 };
 
 } // namespace detail
@@ -274,6 +320,8 @@ struct category_base<I> {
 template <std::input_iterator I>
 class lazy_counted_iterator : public detail::category_base<I> {
   public:
+    auto& get_base_impl_only() const { return current; } // implementation only
+
     using iterator_type   = I;
     using value_type      = std::iter_value_t<I>;
     using difference_type = std::iter_difference_t<I>;
@@ -359,7 +407,7 @@ class lazy_counted_iterator : public detail::category_base<I> {
 };
 
 inline constexpr auto lazy_counted = [](auto&& E, auto&& F)
-    requires std::convertible_to<std::iter_difference_t<std::decay_t<decltype((E))>>, decltype((F))>
+    requires std::convertible_to<decltype((F)), std::iter_difference_t<std::decay_t<decltype((E))>>>
 {
     using T = std::decay_t<decltype((E))>;
     using D = std::iter_difference_t<T>;
@@ -370,6 +418,193 @@ inline constexpr auto lazy_counted = [](auto&& E, auto&& F)
     else
         return std::ranges::subrange(lazy_counted_iterator(E, F), std::default_sentinel);
 };
+
+namespace ranges {
+
+template <std::ranges::view V>
+class lazy_take_view : public std::ranges::view_interface<lazy_take_view<V>> {
+  private:
+    V                                  base_  = V(); // exposition only
+    std::ranges::range_difference_t<V> count_ = 0;   // exposition only
+
+    // [range.lazy.take.sentinel], class template lazy_take_view::sentinel
+    template <bool>
+    class sentinel; // exposition only
+
+  public:
+    lazy_take_view()
+        requires std::default_initializable<V>
+    = default;
+    constexpr lazy_take_view(V base, std::ranges::range_difference_t<V> count)
+        : base_(std::move(base)), count_(count) {}
+
+    constexpr V base() const&
+        requires std::copy_constructible<V>
+    {
+        return base_;
+    }
+    constexpr V base() && { return std::move(base_); }
+
+    constexpr auto begin()
+        requires(!detail::simple_view<V>)
+    {
+        if constexpr (std::ranges::sized_range<V>) {
+            if constexpr (std::ranges::random_access_range<V>) {
+                return std::ranges::begin(base_);
+            } else {
+                auto sz = range_difference_t<V>(size());
+                return lazy_counted_iterator(std::ranges::begin(base_), sz);
+            }
+        } else if constexpr (std::sized_sentinel_for<std::ranges::sentinel_t<V>, std::ranges::iterator_t<V>>) {
+            auto it = std::ranges::begin(base_);
+            auto sz = std::min(count_, std::ranges::end(base_) - it);
+            return lazy_counted_iterator(std::move(it), sz);
+        } else {
+            return lazy_counted_iterator(std::ranges::begin(base_), count_);
+        }
+    }
+
+    constexpr auto begin() const
+        requires std::ranges::range<const V>
+    {
+        if constexpr (std::ranges::sized_range<const V>) {
+            if constexpr (std::ranges::random_access_range<const V>) {
+                return std::ranges::begin(base_);
+            } else {
+                auto sz = std::ranges::range_difference_t<const V>(size());
+                return lazy_counted_iterator(std::ranges::begin(base_), sz);
+            }
+        } else if constexpr (std::sized_sentinel_for<std::ranges::sentinel_t<const V>,
+                                                     std::ranges::iterator_t<const V>>) {
+            auto it = std::ranges::begin(base_);
+            auto sz = std::min(count_, std::ranges::end(base_) - it);
+            return lazy_counted_iterator(std::move(it), sz);
+        } else {
+            return lazy_counted_iterator(std::ranges::begin(base_), count_);
+        }
+    }
+
+    constexpr auto end()
+        requires(!detail::simple_view<V>)
+    {
+        if constexpr (std::ranges::sized_range<V>) {
+            if constexpr (std::ranges::random_access_range<V>)
+                return std::ranges::begin(base_) + range_difference_t<V>(size());
+            else
+                return std::default_sentinel;
+        } else if constexpr (std::sized_sentinel_for<std::ranges::sentinel_t<V>, std::ranges::iterator_t<V>>) {
+            return std::default_sentinel;
+        } else {
+            return sentinel<false>{std::ranges::end(base_)};
+        }
+    }
+
+    constexpr auto end() const
+        requires std::ranges::range<const V>
+    {
+        if constexpr (std::ranges::sized_range<const V>) {
+            if constexpr (std::ranges::random_access_range<const V>)
+                return std::ranges::begin(base_) + std::ranges::range_difference_t<const V>(size());
+            else
+                return std::default_sentinel;
+        } else if constexpr (std::sized_sentinel_for<std::ranges::sentinel_t<const V>,
+                                                     std::ranges::iterator_t<const V>>) {
+            return std::default_sentinel;
+        } else {
+            return sentinel<true>{std::ranges::end(base_)};
+        }
+    }
+
+    constexpr auto size()
+        requires std::ranges::sized_range<V>
+    {
+        auto n = std::ranges::size(base_);
+        return std::ranges::min(n, static_cast<decltype(n)>(count_));
+    }
+
+    constexpr auto size() const
+        requires std::ranges::sized_range<const V>
+    {
+        auto n = std::ranges::size(base_);
+        return std::ranges::min(n, static_cast<decltype(n)>(count_));
+    }
+};
+
+template <class R>
+lazy_take_view(R&&, std::ranges::range_difference_t<R>) -> lazy_take_view<std::views::all_t<R>>;
+
+template <std::ranges::view V>
+template <bool Const>
+class lazy_take_view<V>::sentinel {
+  private:
+    using Base = detail::maybe_const<Const, V>; // exposition only
+    template <bool OtherConst>
+    using CI = lazy_counted_iterator<std::ranges::iterator_t<detail::maybe_const<OtherConst, V>>>; // exposition only
+    std::ranges::sentinel_t<Base> end_ = std::ranges::sentinel_t<Base>();                          // exposition only
+
+  public:
+    sentinel() = default;
+    constexpr explicit sentinel(std::ranges::sentinel_t<Base> end) : end_(end) {}
+    constexpr sentinel(sentinel<!Const> s)
+        requires Const && std::convertible_to<std::ranges::sentinel_t<V>, std::ranges::sentinel_t<Base>>
+        : end_(std::move(s.end_)) {}
+
+    constexpr std::ranges::sentinel_t<Base> base() const { return end_; }
+
+    friend constexpr bool operator==(const CI<Const>& y, const sentinel& x) {
+        return y.count() == 0 || y.get_base_impl_only() == x.end_;
+    }
+
+    template <bool OtherConst = !Const>
+        requires std::sentinel_for<std::ranges::sentinel_t<Base>,
+                                   std::ranges::iterator_t<detail::maybe_const<OtherConst, V>>>
+    friend constexpr bool operator==(const CI<OtherConst>& y, const sentinel& x) {
+        return y.count() == 0 || y.get_base_impl_only() == x.end_;
+    }
+};
+
+} // namespace ranges
+
+namespace detail {
+
+struct lazy_take_t {
+    constexpr lazy_take_t() = default;
+    constexpr auto operator()(std::ranges::input_range auto&& E, auto&& F) const
+        requires std::convertible_to<decltype((F)), std::ranges::range_difference_t<decltype((E))>>
+    {
+        using T = std::remove_cvref_t<decltype((E))>;
+        using D = std::ranges::range_difference_t<decltype((E))>;
+        if constexpr (is_empty_view<T>)
+            return E;
+        else if constexpr (std::ranges::random_access_range<T> && std::ranges::sized_range<T> &&
+                           empty_traits<T>::is_specialized) {
+            if constexpr (requires { typename empty_traits<T>::specialization; })
+                return empty_traits<T>::specialization(
+                    std::ranges::begin(E), std::ranges::begin(E) + std::min<D>(std::ranges::distance(E), F));
+            else
+                return std::ranges::iota_view(*std::ranges::begin(E),
+                                              *(std::ranges::begin(E) + std::min<D>(std::ranges::distance(E), F)));
+        }
+#if __cpp_lib_ranges_repeat >= 202207L
+        else if constexpr (is_repeat_view<T>) {
+            if constexpr (std::ranges::sized_range<T>)
+                return std::views::repeat(*E.value_, std::min<D>(std::ranges::distance(E), F));
+            else
+                return std::views::repeat(*E.value_, static_cast<D>(F));
+        }
+#endif
+        else
+            return ranges::lazy_take_view(E, F);
+    }
+
+    constexpr auto operator()(auto&& E) const {
+        return range_adaptor_closure_t(bind_back(*this, std::forward<decltype(E)>(E)));
+    }
+};
+
+} // namespace detail
+
+inline constexpr detail::lazy_take_t lazy_take{};
 
 } // namespace beman::closed_view
 
