@@ -618,7 +618,7 @@ namespace ranges {
 
 template <std::ranges::view V>
     requires std::ranges::input_range<V>
-class as_closed_view : public std::ranges::view_interface<as_closed_view<V>> {
+class closed_view : public std::ranges::view_interface<closed_view<V>> {
   private:
     // [range.as.closed.iterator], class iota_view::iterator
     template <bool>
@@ -627,10 +627,10 @@ class as_closed_view : public std::ranges::view_interface<as_closed_view<V>> {
     V base_ = V(); // exposition only
 
   public:
-    as_closed_view()
+    closed_view()
         requires std::default_initializable<V>
     = default;
-    constexpr explicit as_closed_view(V base) : base_(std::move(base)) {}
+    constexpr explicit closed_view(V base) : base_(std::move(base)) {}
 
     constexpr V base() const&
         requires std::copy_constructible<V>
@@ -678,7 +678,7 @@ class as_closed_view : public std::ranges::view_interface<as_closed_view<V>> {
 template <std::ranges::view V>
     requires std::ranges::input_range<V>
 template <bool Const>
-class as_closed_view<V>::iterator : detail::category_base_all<std::ranges::iterator_t<detail::maybe_const<Const, V>>> {
+class closed_view<V>::iterator : detail::category_base_all<std::ranges::iterator_t<detail::maybe_const<Const, V>>> {
   private:
     using Base                             = detail::maybe_const<Const, V>;   // exposition only
     std::ranges::iterator_t<Base> current_ = std::ranges::iterator_t<Base>(); // exposition only
@@ -689,7 +689,7 @@ class as_closed_view<V>::iterator : detail::category_base_all<std::ranges::itera
         : current_(std::move(current)), last_(std::move(last)), is_end_(is_end) {}
 
   public:
-    friend as_closed_view;
+    friend closed_view;
 
     using iterator_concept = std::conditional_t<
         std::ranges::random_access_range<Base>,
@@ -709,9 +709,6 @@ class as_closed_view<V>::iterator : detail::category_base_all<std::ranges::itera
     constexpr iterator(iterator<!Const> i)
         requires Const && std::convertible_to<std::ranges::iterator_t<V>, std::ranges::iterator_t<Base>>
         : current_(std::move(i.current_)), last_(std::move(i.last_)), is_end_(i.is_end_) {}
-
-    constexpr const std::ranges::iterator_t<Base>& base() const& noexcept { return current_; }
-    constexpr std::ranges::iterator_t<Base>        base() && { return std::move(current_); }
 
     constexpr decltype(auto) operator*() const { return *current_; }
     constexpr decltype(auto) operator*() { return *current_; }
@@ -837,21 +834,12 @@ class as_closed_view<V>::iterator : detail::category_base_all<std::ranges::itera
 };
 
 template <class R>
-as_closed_view(R&&) -> as_closed_view<std::views::all_t<R>>;
+closed_view(R&&) -> closed_view<std::views::all_t<R>>;
 
 } // namespace ranges
 
-namespace detail {
-
-struct as_closed_t : range_adaptor_closure<as_closed_t> {
-    constexpr as_closed_t() = default;
-    constexpr auto operator()(std::ranges::input_range auto&& E) const { return ranges::as_closed_view(E); }
-};
-
-} // namespace detail
-
-inline constexpr detail::as_closed_t as_closed{};
-inline constexpr auto closed = [](auto&& E, auto&& F) { return ranges::as_closed_view(std::views::iota(E, F)); };
+inline constexpr auto closed = [](auto&& E, auto&& F) { return ranges::closed_view(std::ranges::subrange(E, F)); };
+inline constexpr auto closed_iota = [](auto&& E, auto&& F) { return ranges::closed_view(std::views::iota(E, F)); };
 
 } // namespace beman::closed_view
 

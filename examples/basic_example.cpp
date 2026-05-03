@@ -1,6 +1,7 @@
 #include <iostream>
 #include <sstream>
 #include <ranges>
+#include <vector>
 
 #if __cpp_lib_print >= 202207L
     #include <print>
@@ -37,13 +38,16 @@ void println(auto&& rng) {
 
 // Example given in the paper for closed views. (Needs C++23)
 int main() {
-    println(views::iota(0, 5)); // [0, 1, 2, 3, 4]
-    println(exe::closed(0, 5)); // [0, 1, 2, 3, 4, 5]
+    println(views::iota(0, 5));      // [0, 1, 2, 3, 4]
+    println(exe::closed_iota(0, 5)); // [0, 1, 2, 3, 4, 5]
 
     int max = std::numeric_limits<int>::max();
     println(views::iota(max - 20, max)); // fine but not including max
     // println(views::iota(max - 20, -max - 1)); // UB
-    println(exe::closed(max - 20, max)); // ok, includes max
+    println(exe::closed_iota(max - 20, max)); // ok, includes max
+
+    std::vector vec{1, 2, 3, 4, 5};
+    println(exe::closed(vec.begin() + 2, vec.begin() + 4)); // [3, 4, 5]
 
     // A range with 11 elements but calculating 12th element overflows
     auto weird = views::iota(0) | views::filter([](auto i) { return i < 11; });

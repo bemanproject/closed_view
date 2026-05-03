@@ -22,7 +22,7 @@ closed ranges and adapts them into half-open ranges that every other
 C++ range facilities expects. Specifically, the proposal introduced
 the following additions:
 
-- `views::as_closed` and `ranges::as_closed_view`: Adapting a pair of
+- `views::closed` and `ranges::closed_view`: Adapting a pair of
   iterators and sentinels representing closed ranges into
   half-open ones.
 - `views::lazy_counted` and `std::lazy_counted_iterator`: A version of
@@ -31,14 +31,15 @@ the following additions:
 - `views::lazy_take` and `ranges::lazy_take_view`: A version of
   `take_view` that utilize lazy version of `counted_iterator` to prevent
   overshooting the underlying range.
-- `views::closed(a, b)` that represents the range `[a, b]`
+- `views::closed_iota(a, b)` that represents the range `[a, b]`
   (closed version of `views::iota`).
-  Equivalent to `views::as_closed(views::iota(a, b))`.
+  Equivalent to `views::closed` + `views::iota(a, b)`.
 
 ```cpp
 #include <sstream>
 #include <print>
 #include <ranges>
+#include <vector>
 
 #include <beman/closed_view/closed.hpp>
 
@@ -49,12 +50,15 @@ namespace exe = beman::closed_view;
 int main()
 {
     std::println("{}", views::iota(0, 5)); // [0, 1, 2, 3, 4]
-    std::println("{}", exe::closed(0, 5)); // [0, 1, 2, 3, 4, 5]
+    std::println("{}", exe::closed_iota(0, 5)); // [0, 1, 2, 3, 4, 5]
 
     int max = std::numeric_limits<int>::max();
     std::println("{}", views::iota(max - 20, max)); // fine but not including max
     std::println("{}", views::iota(max - 20, -max - 1)); // UB
-    std::println("{}", exe::closed(max - 20, max)); // ok, includes max
+    std::println("{}", exe::closed_iota(max - 20, max)); // ok, includes max
+
+    std::vector vec{1, 2, 3, 4, 5};
+    std::println("{}", exe::closed(vec.begin() + 2, vec.begin() + 4)); // [3, 4, 5]
 
     // A range with 11 elements but calculating 12th element overflows
     auto weird = views::iota(0) | views::filter([](auto i) { return i < 11; });
