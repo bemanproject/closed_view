@@ -328,7 +328,7 @@ struct empty_traits<std::ranges::iota_view<W, Bound>> {
 template <std::input_iterator I>
 class lazy_counted_iterator : public detail::category_base<I> {
   public:
-    auto& get_base_impl_only() const { return current; } // implementation only
+    constexpr auto& get_base_impl_only() const { return current; } // implementation only
 
     using iterator_type   = I;
     using value_type      = std::iter_value_t<I>;
@@ -357,6 +357,11 @@ class lazy_counted_iterator : public detail::category_base<I> {
         requires detail::dereferenceable<const I>
     {
         return *current;
+    }
+    constexpr auto operator->() const noexcept
+        requires std::contiguous_iterator<I>
+    {
+        return std::to_address(current);
     }
 
     constexpr lazy_counted_iterator& operator++() {
@@ -497,7 +502,7 @@ class lazy_take_view : public std::ranges::view_interface<lazy_take_view<V>> {
     {
         if constexpr (std::ranges::sized_range<V>) {
             if constexpr (std::ranges::random_access_range<V>)
-                return std::ranges::begin(base_) + range_difference_t<V>(size());
+                return std::ranges::begin(base_) + std::ranges::range_difference_t<V>(size());
             else
                 return std::default_sentinel;
         } else if constexpr (std::sized_sentinel_for<std::ranges::sentinel_t<V>, std::ranges::iterator_t<V>>) {
@@ -820,5 +825,12 @@ inline constexpr auto                closed = [](auto&& E, auto&& F) { return ra
 inline constexpr auto closed_iota = [](auto&& E, auto&& F) { return ranges::closed_view(std::views::iota(E, F)); };
 
 } // namespace beman::closed_view
+
+// Enable borrowed for lazy_take and closed_view
+template <class T>
+constexpr bool std::ranges::enable_borrowed_range<beman::closed_view::ranges::lazy_take_view<T>> =
+    std::ranges::enable_borrowed_range<T>;
+template <class I, class S>
+constexpr bool std::ranges::enable_borrowed_range<beman::closed_view::ranges::closed_view<I, S>> = true;
 
 #endif // BEMAN_CLOSED_VIEW_CLOSED_HPP

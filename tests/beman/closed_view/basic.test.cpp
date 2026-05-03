@@ -9,15 +9,7 @@
 
 #include <beman/closed_view/closed.hpp>
 
-namespace exe = beman::scan_view;
-
-template <class E1, class E2, std::size_t N, class Join = std::plus<E1>>
-auto joinArrays(E1 (&a)[N], E2 (&b)[N], Join join = Join()) {
-    return exe::scan(a, [&a, &b, join](auto sum, auto& cur) {
-        auto idx = (&cur) - a;
-        return join(sum, b[idx]);
-    });
-}
+namespace exe = beman::closed_view;
 
 struct NonConstView : std::ranges::view_base {
     explicit NonConstView(int* b, int* e) : b_(b), e_(e) {}
@@ -27,149 +19,161 @@ struct NonConstView : std::ranges::view_base {
     const int* e_;
 };
 
-struct NonTrivialFunctor {
-    int           var_;
-    constexpr int operator()(int a, int b) const { return a + b; }
-};
-
-struct MoveOnlyFunctor {
-    MoveOnlyFunctor()                                      = default;
-    MoveOnlyFunctor(const MoveOnlyFunctor&)                = delete;
-    MoveOnlyFunctor& operator=(const MoveOnlyFunctor&)     = delete;
-    MoveOnlyFunctor(MoveOnlyFunctor&&) noexcept            = default;
-    MoveOnlyFunctor& operator=(MoveOnlyFunctor&&) noexcept = default;
-    int              operator()(int a, const std::unique_ptr<int>& b) const { return a + *b; }
-};
-
-struct MoveOnlyNonTrivialFunctor : MoveOnlyFunctor {
-    int var_;
-};
-
 // Some basic examples of how transform_view might be used in the wild. This is a general
 // collection of sample algorithms and functions that try to mock general usage of
 // this view.
 
-TEST(ScanView, General) {
+TEST(ClosedView, General) {
     std::vector<int> vec         = {1, 2, 3, 4};
-    auto             transformed = exe::scan(vec, std::plus{});
-    int              expected[]  = {1, 3, 6, 10};
+    auto             transformed = exe::closed(vec.begin() + 1, vec.begin() + 3);
+    ASSERT_EQ(std::ranges::size(transformed), 3);
+    int expected[] = {2, 3, 4};
     ASSERT_TRUE(std::ranges::equal(transformed, expected));
     const auto& ct = transformed;
     ASSERT_TRUE(std::ranges::equal(ct, expected));
 
-    auto transformed2 = exe::scan(vec, std::plus{}, 10);
-    int  expected2[]  = {11, 13, 16, 20};
+    auto transformed2 = exe::closed_iota(0, 10);
+    ASSERT_EQ(std::ranges::size(transformed2), 11);
+    int expected2[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
     ASSERT_TRUE(std::ranges::equal(transformed2, expected2));
     const auto& ct2 = transformed2;
     ASSERT_TRUE(std::ranges::equal(ct2, expected2));
+
+    auto take1 = std::views::iota(0) | exe::lazy_take(5);
+    ASSERT_EQ(std::ranges::distance(take1), 5);
+    int expected3[] = {0, 1, 2, 3, 4};
+    ASSERT_TRUE(std::ranges::equal(take1, expected3));
+    const auto& ct3 = take1;
+    ASSERT_TRUE(std::ranges::equal(ct3, expected3));
+
+    auto take2 = exe::lazy_counted(std::views::iota(0).begin(), 10);
+    ASSERT_EQ(std::ranges::size(take2), 10);
+    int expected4[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    ASSERT_TRUE(std::ranges::equal(take2, expected4));
+    const auto& ct4 = take2;
+    ASSERT_TRUE(std::ranges::equal(ct4, expected4));
 }
 
-TEST(ScanView, Constexpr) {
-    static constexpr std::array<int, 4> arr         = {1, 2, 3, 4};
-    static constexpr auto               transformed = exe::scan(arr, std::plus{});
-    static constexpr std::array<int, 4> expected    = {1, 3, 6, 10};
+TEST(ClosedView, Constexpr) {
+    static constexpr std::array vec         = {1, 2, 3, 4};
+    static constexpr auto       transformed = exe::closed(vec.begin() + 1, vec.begin() + 3);
+    static_assert(std::ranges::size(transformed) == 3);
+    static constexpr std::array expected = {2, 3, 4};
     static_assert(std::ranges::equal(transformed, expected));
 
-    static constexpr auto               transformed2 = exe::scan(arr, std::plus{}, 10);
-    static constexpr std::array<int, 4> expected2    = {11, 13, 16, 20};
+    static constexpr auto transformed2 = exe::closed_iota(0, 10);
+    static_assert(std::ranges::size(transformed2) == 11);
+    static constexpr std::array expected2 = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
     static_assert(std::ranges::equal(transformed2, expected2));
+
+    static constexpr auto take1 = std::views::iota(0) | exe::lazy_take(5);
+    static_assert(std::ranges::distance(take1) == 5);
+    static constexpr std::array expected3 = {0, 1, 2, 3, 4};
+    static_assert(std::ranges::equal(take1, expected3));
+
+    static constexpr auto take2 = exe::lazy_counted(std::views::iota(0).begin(), 10);
+    static_assert(std::ranges::size(take2) == 10);
+    static constexpr std::array expected4 = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    static_assert(std::ranges::equal(take2, expected4));
 }
 
-TEST(ScanView, Properties) {
+TEST(ClosedView, Properties) {
     std::vector<int> vec         = {1, 2, 3, 4};
-    auto             transformed = exe::scan(vec, std::plus{});
+    auto             transformed = exe::closed(vec.begin() + 1, vec.begin() + 3);
     static_assert(std::is_same_v<std::ranges::range_value_t<decltype(transformed)>, int>);
-    static_assert(std::is_same_v<std::ranges::range_reference_t<decltype(transformed)>, const int&>);
-    static_assert(std::ranges::input_range<decltype(transformed)> &&
-                  !std::ranges::forward_range<decltype(transformed)>);
-    static_assert(!std::ranges::common_range<decltype(transformed)>);
+    static_assert(std::is_same_v<std::ranges::range_reference_t<decltype(transformed)>, int&>);
+    static_assert(std::ranges::random_access_range<decltype(transformed)>);
+    static_assert(std::ranges::common_range<decltype(transformed)>);
     static_assert(std::ranges::sized_range<decltype(transformed)>);
     static_assert(std::ranges::range<const decltype(transformed)>);
     static_assert(std::ranges::borrowed_range<decltype(transformed)>);
-    ASSERT_EQ(transformed.size(), 4);
+    ASSERT_EQ(transformed.size(), 3);
 
-    auto transformed2 = exe::scan(vec, std::plus{}, 10);
+    auto transformed2 = exe::closed_iota(0, 10);
     static_assert(std::is_same_v<std::ranges::range_value_t<decltype(transformed2)>, int>);
-    static_assert(std::is_same_v<std::ranges::range_reference_t<decltype(transformed2)>, const int&>);
-    static_assert(std::ranges::input_range<decltype(transformed2)> &&
-                  !std::ranges::forward_range<decltype(transformed2)>);
-    static_assert(!std::ranges::common_range<decltype(transformed2)>);
+    static_assert(std::is_same_v<std::ranges::range_reference_t<decltype(transformed2)>, int>);
+    static_assert(std::ranges::random_access_range<decltype(transformed2)>);
+    static_assert(std::ranges::common_range<decltype(transformed2)>);
     static_assert(std::ranges::sized_range<decltype(transformed2)>);
     static_assert(std::ranges::range<const decltype(transformed2)>);
     static_assert(std::ranges::borrowed_range<decltype(transformed2)>);
-    ASSERT_EQ(transformed2.size(), 4);
+    ASSERT_EQ(transformed2.size(), 11);
 
-    auto transformed3 = exe::scan(vec, NonTrivialFunctor{});
-    static_assert(std::is_same_v<std::ranges::range_value_t<decltype(transformed3)>, int>);
-    static_assert(std::is_same_v<std::ranges::range_reference_t<decltype(transformed3)>, const int&>);
-    static_assert(std::ranges::input_range<decltype(transformed3)> &&
-                  !std::ranges::forward_range<decltype(transformed3)>);
-    static_assert(!std::ranges::common_range<decltype(transformed3)>);
-    static_assert(std::ranges::sized_range<decltype(transformed3)>);
-    static_assert(std::ranges::range<const decltype(transformed3)>);
-    static_assert(!std::ranges::borrowed_range<decltype(transformed3)>);
-    ASSERT_EQ(transformed3.size(), 4);
+    auto take1 = std::views::iota(0) | exe::lazy_take(5);
+    static_assert(std::is_same_v<std::ranges::range_value_t<decltype(take1)>, int>);
+    static_assert(std::is_same_v<std::ranges::range_reference_t<decltype(take1)>, int>);
+    static_assert(std::ranges::forward_range<decltype(take1)> && !std::ranges::bidirectional_range<decltype(take1)>);
+    static_assert(!std::ranges::common_range<decltype(take1)>);
+    static_assert(!std::ranges::sized_range<decltype(take1)>);
+    static_assert(std::ranges::range<const decltype(take1)>);
+    static_assert(std::ranges::borrowed_range<decltype(take1)>);
+    ASSERT_EQ(std::ranges::distance(take1.begin(), take1.end()), 5);
+
+    auto take2 = exe::lazy_counted(std::views::iota(0).begin(), 10);
+    static_assert(std::is_same_v<std::ranges::range_value_t<decltype(take2)>, int>);
+    static_assert(std::is_same_v<std::ranges::range_reference_t<decltype(take2)>, int>);
+    static_assert(std::ranges::random_access_range<decltype(take2)>);
+    static_assert(std::ranges::common_range<decltype(take2)>);
+    static_assert(std::ranges::sized_range<decltype(take2)>);
+    static_assert(std::ranges::range<const decltype(take2)>);
+    static_assert(std::ranges::borrowed_range<decltype(take2)>);
+    ASSERT_EQ(std::distance(take2.begin(), take2.end()), 10);
 }
 
-TEST(ScanView, NonConstIterable) {
+TEST(ClosedView, NonConstIterable) {
     // Test a view type that is not const-iterable.
     int  a[]         = {1, 2, 3, 4};
-    auto transformed = NonConstView(a, a + 4) | exe::scan(std::plus{});
-    int  expected[]  = {1, 3, 6, 10};
+    auto transformed = NonConstView(a, a + 4) | exe::lazy_take(2);
+    int  expected[]  = {1, 2};
     ASSERT_TRUE(std::ranges::equal(transformed, expected));
 
-    auto transformed2 = NonConstView(a, a + 4) | exe::scan(std::plus{}, 10);
-    int  expected2[]  = {11, 13, 16, 20};
+    auto transformed2 = NonConstView(a, a + 3) | exe::as_closed;
+    int  expected2[]  = {1, 2, 3, 4};
     ASSERT_TRUE(std::ranges::equal(transformed2, expected2));
 }
 
-TEST(ScanView, Borrowed) {
-    std::vector<int>                              vec = {1, 2, 3, 4};
-    decltype(exe::scan(vec, std::plus{}).begin()) it;
+TEST(ClosedView, Borrowed) {
+    std::vector<int>                         vec = {1, 2, 3, 4};
+    decltype(exe::lazy_take(vec, 3).begin()) it;
     {
-        auto transformed = exe::scan(vec, std::plus{});
+        auto transformed = exe::lazy_take(vec, 3);
         it               = transformed.begin();
     }
     ASSERT_EQ(*it, 1);
     ++it;
+    ASSERT_EQ(*it, 2);
+    ++it;
     ASSERT_EQ(*it, 3);
-}
 
-TEST(ScanView, JoinArray) {
-    int  a[]     = {1, 2, 3, 4};
-    int  b[]     = {4, 3, 2, 1};
-    auto out     = joinArrays(a, b);
-    int  check[] = {1, 4, 6, 7};
-    ASSERT_TRUE(std::ranges::equal(out, check));
-
-    auto out2     = joinArrays(a, b, std::multiplies{});
-    int  check2[] = {1, 3, 6, 6};
-    ASSERT_TRUE(std::ranges::equal(out2, check2));
+    decltype(exe::as_closed(vec).begin()) it2;
+    {
+        auto transformed = exe::as_closed(vec);
+        it2              = transformed.begin();
+    }
+    ASSERT_EQ(*it2, 1);
+    ++it2;
+    ASSERT_EQ(*it2, 2);
+    ++it2;
+    ASSERT_EQ(*it2, 3);
+    ++it2;
+    ASSERT_EQ(*it2, 4);
 }
 
 #if __cplusplus >= 202302L && __cpp_lib_ranges >= 202207L // FTM for P2494R2
-TEST(ScanView, MoveOnly) {
+TEST(ClosedView, MoveOnly) {
     std::vector<std::unique_ptr<int>> vec4;
     vec4.push_back(std::make_unique<int>(5));
     vec4.push_back(std::make_unique<int>(2));
     vec4.push_back(std::make_unique<int>(10));
-    auto out     = exe::scan(vec4, [](const auto& a, const auto& b) { return a + *b; }, 3);
-    int  check[] = {8, 10, 20};
+    auto out     = exe::lazy_take(vec4, 2) | std::views::transform([](const auto& p) { return *p; });
+    int  check[] = {5, 2};
     ASSERT_TRUE(std::ranges::equal(out, check));
 
-    decltype(exe::scan(vec4, MoveOnlyFunctor{}, 3).begin()) it;
-    {
-        auto out2 = exe::scan(vec4, MoveOnlyFunctor{}, 3);
-        static_assert(std::ranges::borrowed_range<decltype(out2)>);
-        ASSERT_TRUE(std::ranges::equal(out2, check));
-        it = out2.begin();
-    }
-    ASSERT_EQ(*it, 8);
-    ++it;
-    ASSERT_EQ(*it, 10);
+    auto out2 = exe::lazy_counted(vec4.begin(), 2) | std::views::transform([](const auto& p) { return *p; });
+    ASSERT_TRUE(std::ranges::equal(out2, check));
 
-    auto out3 = exe::scan(vec4, MoveOnlyNonTrivialFunctor{}, 3);
-    static_assert(!std::ranges::borrowed_range<decltype(out3)>);
-    ASSERT_TRUE(std::ranges::equal(out3, check));
+    auto out3 = exe::closed(vec4.begin(), vec4.begin() + 2) | std::views::transform([](const auto& p) { return *p; });
+    int  check2[] = {5, 2, 10};
+    ASSERT_TRUE(std::ranges::equal(out3, check2));
 }
 #endif
