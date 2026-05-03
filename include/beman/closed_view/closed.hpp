@@ -792,17 +792,17 @@ class closed_view<I, S>::iterator : detail::category_base_all<I> {
     friend constexpr difference_type operator-(const iterator& x, const iterator& y)
         requires std::sized_sentinel_for<S, I>
     {
-        return x.current_ - y.current_;
+        return x.current_ + x.is_end_ - y.current_ - y.is_end_;
     }
     friend constexpr difference_type operator-(const iterator& x, std::default_sentinel_t)
         requires std::sized_sentinel_for<S, I>
     {
-        return x.current_ - x.last_;
+        return x.current_ + x.is_end_ - x.last_;
     }
     friend constexpr difference_type operator-(std::default_sentinel_t, const iterator& x)
         requires std::sized_sentinel_for<S, I>
     {
-        return x.last_ - x.current_;
+        return x.last_ - x.current_ - x.is_end_;
     }
 };
 

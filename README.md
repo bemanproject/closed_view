@@ -36,6 +36,7 @@ the following additions:
   Equivalent to `views::closed` + `views::iota(a, b)`.
 
 ```cpp
+#include <limits>
 #include <sstream>
 #include <print>
 #include <ranges>

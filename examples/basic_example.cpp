@@ -1,4 +1,5 @@
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <ranges>
 #include <vector>
@@ -55,14 +56,14 @@ int main() {
     println(weird | exe::lazy_take(11)); // fine, 0-10
 
     auto iss    = std::istringstream("0 1 2");
-    auto weird2 = views::istream<int>(iss) | views::take(1);
+    auto weird2 = std::ranges::istream_view<int>(iss) | views::take(1);
     println(weird2); // fine, [0]
     auto i = 0;
     iss >> i;
     std::cout << "i = " << i << "\n"; // 2 (!)
 
     auto iss2 = std::istringstream("0 1 2");
-    auto ok2  = views::istream<int>(iss2) | exe::lazy_take(1);
+    auto ok2  = std::ranges::istream_view<int>(iss2) | exe::lazy_take(1);
     println(ok2); // fine, [0]
     auto i2 = 0;
     iss2 >> i2;

@@ -57,22 +57,26 @@ TEST(ClosedView, General) {
 TEST(ClosedView, Constexpr) {
     static constexpr std::array vec         = {1, 2, 3, 4};
     static constexpr auto       transformed = exe::closed(vec.begin() + 1, vec.begin() + 3);
+    static_assert(std::ranges::distance(transformed.begin(), transformed.end()) == 3);
     static_assert(std::ranges::size(transformed) == 3);
     static constexpr std::array expected = {2, 3, 4};
     static_assert(std::ranges::equal(transformed, expected));
 
     static constexpr auto transformed2 = exe::closed_iota(0, 10);
+    static_assert(std::ranges::distance(transformed2.begin(), transformed2.end()) == 11);
     static_assert(std::ranges::size(transformed2) == 11);
     static constexpr std::array expected2 = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
     static_assert(std::ranges::equal(transformed2, expected2));
 
     static constexpr auto take1 = std::views::iota(0) | exe::lazy_take(5);
     static_assert(std::ranges::distance(take1) == 5);
+    static_assert(std::ranges::distance(take1.begin(), take1.end()) == 5);
     static constexpr std::array expected3 = {0, 1, 2, 3, 4};
     static_assert(std::ranges::equal(take1, expected3));
 
     static constexpr auto take2 = exe::lazy_counted(std::views::iota(0).begin(), 10);
     static_assert(std::ranges::size(take2) == 10);
+    static_assert(std::ranges::distance(take2.begin(), take2.end()) == 10);
     static constexpr std::array expected4 = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
     static_assert(std::ranges::equal(take2, expected4));
 }
