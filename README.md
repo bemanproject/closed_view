@@ -22,7 +22,7 @@ closed ranges and adapts them into half-open ranges that every other
 C++ range facilities expects. Specifically, the proposal introduced
 the following additions:
 
-- `views::as_closed` and `ranges::closed_view`: Adapting a pair of
+- `views::as_closed` and `ranges::as_closed_view`: Adapting a pair of
   iterators and sentinels representing closed ranges into
   half-open ones.
 - `views::lazy_counted` and `std::lazy_counted_iterator`: A version of
@@ -59,7 +59,7 @@ int main()
     // A range with 11 elements but calculating 12th element overflows
     auto weird = views::iota(0) | views::filter([](auto i) { return i < 11; });
     std::println("{}", weird); // UB
-    std::println("{}", weird | exe::as_closed); // fine, 0-10
+    std::println("{}", weird | exe::lazy_take(11)); // fine, 0-10
 
     auto iss = std::istringstream("0 1 2");
     auto weird2 = views::istream<int>(iss) | views::take(1);

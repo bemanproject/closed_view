@@ -273,6 +273,14 @@ struct category_base<I> {
     using iterator_category = std::forward_iterator_tag;
 };
 
+template <typename I>
+struct category_base_all {};
+template <typename I>
+    requires std::derived_from<typename std::iterator_traits<I>::iterator_category, std::forward_iterator_tag>
+struct category_base_all<I> {
+    using iterator_category = std::iterator_traits<I>::iterator_category;
+};
+
 template <typename T>
 struct is_empty_view_t : std::false_type {};
 template <typename T>
@@ -361,7 +369,7 @@ class lazy_counted_iterator : public detail::category_base<I> {
     constexpr lazy_counted_iterator operator++(int)
         requires std::forward_iterator<I>
     {
-        lazy_counted_iterator tmp = *this;
+        auto tmp = *this;
         ++*this;
         return tmp;
     }
@@ -588,9 +596,9 @@ struct lazy_take_t {
 #if __cpp_lib_ranges_repeat >= 202207L
         else if constexpr (is_repeat_view<T>) {
             if constexpr (std::ranges::sized_range<T>)
-                return std::views::repeat(*E.value_, std::min<D>(std::ranges::distance(E), F));
+                return std::views::repeat(*E.begin(), std::min<D>(std::ranges::distance(E), F));
             else
-                return std::views::repeat(*E.value_, static_cast<D>(F));
+                return std::views::repeat(*E.begin(), static_cast<D>(F));
         }
 #endif
         else
@@ -605,6 +613,245 @@ struct lazy_take_t {
 } // namespace detail
 
 inline constexpr detail::lazy_take_t lazy_take{};
+
+namespace ranges {
+
+template <std::ranges::view V>
+    requires std::ranges::input_range<V>
+class as_closed_view : public std::ranges::view_interface<as_closed_view<V>> {
+  private:
+    // [range.as.closed.iterator], class iota_view::iterator
+    template <bool>
+    class iterator; // exposition only
+
+    V base_ = V(); // exposition only
+
+  public:
+    as_closed_view()
+        requires std::default_initializable<V>
+    = default;
+    constexpr explicit as_closed_view(V base) : base_(std::move(base)) {}
+
+    constexpr V base() const&
+        requires std::copy_constructible<V>
+    {
+        return base_;
+    }
+    constexpr V base() && { return std::move(base_); }
+
+    constexpr iterator<false> begin() { return iterator<false>{std::ranges::begin(base_), std::ranges::end(base_)}; }
+    constexpr iterator<true>  begin() const
+        requires std::ranges::range<const V>
+    {
+        return iterator<true>{std::ranges::begin(base_), std::ranges::end(base_)};
+    }
+
+    constexpr auto            end() { return std::default_sentinel; }
+    constexpr iterator<false> end()
+        requires std::ranges::common_range<V>
+    {
+        return iterator<false>{std::ranges::end(base_), std::ranges::end(base_), true};
+    }
+    constexpr auto end() const
+        requires std::ranges::range<const V>
+    {
+        return std::default_sentinel;
+    }
+    constexpr iterator<true> end() const
+        requires std::ranges::common_range<const V>
+    {
+        return iterator<true>{std::ranges::end(base_), std::ranges::end(base_), true};
+    }
+
+    constexpr auto size()
+        requires std::ranges::sized_range<V>
+    {
+        return std::ranges::size(base_);
+    }
+    constexpr auto size() const
+        requires std::ranges::sized_range<const V>
+    {
+        return std::ranges::size(base_);
+    }
+};
+
+template <std::ranges::view V>
+    requires std::ranges::input_range<V>
+template <bool Const>
+class as_closed_view<V>::iterator : detail::category_base_all<std::ranges::iterator_t<detail::maybe_const<Const, V>>> {
+  private:
+    using Base                             = detail::maybe_const<Const, V>;   // exposition only
+    std::ranges::iterator_t<Base> current_ = std::ranges::iterator_t<Base>(); // exposition only
+    std::ranges::sentinel_t<Base> last_    = std::ranges::sentinel_t<Base>(); // exposition only
+    bool                          is_end_  = false;                           // exposition only
+
+    constexpr iterator(std::ranges::iterator_t<Base> current, std::ranges::sentinel_t<Base> last, bool is_end)
+        : current_(std::move(current)), last_(std::move(last)), is_end_(is_end) {}
+
+  public:
+    friend as_closed_view;
+
+    using iterator_concept = std::conditional_t<
+        std::ranges::random_access_range<Base>,
+        std::random_access_iterator_tag,
+        std::conditional_t<
+            std::ranges::bidirectional_range<Base>,
+            std::bidirectional_iterator_tag,
+            std::conditional_t<std::ranges::forward_range<Base>, std::forward_iterator_tag, std::input_iterator_tag>>>;
+    using value_type      = std::ranges::range_value_t<Base>;
+    using difference_type = std::ranges::range_difference_t<Base>;
+
+    iterator()
+        requires std::default_initializable<std::ranges::iterator_t<Base>>
+    = default;
+    constexpr iterator(std::ranges::iterator_t<Base> current, std::ranges::sentinel_t<Base> last)
+        : current_(std::move(current)), last_(std::move(last)) {}
+    constexpr iterator(iterator<!Const> i)
+        requires Const && std::convertible_to<std::ranges::iterator_t<V>, std::ranges::iterator_t<Base>>
+        : current_(std::move(i.current_)), last_(std::move(i.last_)), is_end_(i.is_end_) {}
+
+    constexpr const std::ranges::iterator_t<Base>& base() const& noexcept { return current_; }
+    constexpr std::ranges::iterator_t<Base>        base() && { return std::move(current_); }
+
+    constexpr decltype(auto) operator*() const { return *current_; }
+    constexpr decltype(auto) operator*() { return *current_; }
+    constexpr iterator&      operator++() {
+        if (current_ == last_)
+            is_end_ = true;
+        else
+            ++current_;
+        return *this;
+    }
+    constexpr void     operator++(int) { ++*this; }
+    constexpr iterator operator++(int)
+        requires std::ranges::forward_range<Base>
+    {
+        auto tmp = *this;
+        ++*this;
+        return tmp;
+    }
+    constexpr iterator& operator--()
+        requires std::ranges::bidirectional_range<Base>
+    {
+        if (is_end_)
+            is_end_ = false;
+        else
+            --current_;
+        return *this;
+    }
+    constexpr iterator operator--(int)
+        requires std::ranges::bidirectional_range<Base>
+    {
+        auto tmp = *this;
+        --*this;
+        return tmp;
+    }
+
+    constexpr iterator& operator+=(difference_type n)
+        requires std::ranges::random_access_range<Base>
+    {
+        current_ += n;
+        return *this;
+    }
+    constexpr iterator& operator-=(difference_type n)
+        requires std::ranges::random_access_range<Base>
+    {
+        current_ -= n;
+        return *this;
+    }
+    constexpr decltype(auto) operator[](difference_type n) const
+        requires std::ranges::random_access_range<Base>
+    {
+        return current_[n];
+    }
+    constexpr decltype(auto) operator[](difference_type n)
+        requires std::ranges::random_access_range<Base>
+    {
+        return current_[n];
+    }
+
+    friend constexpr bool operator==(const iterator& x, const iterator& y)
+        requires std::equality_comparable<std::ranges::iterator_t<Base>>
+    {
+        return x.current_ == y.current_ && x.last_ == y.last_ && x.is_end_ == y.is_end_;
+    }
+    friend constexpr bool operator==(const iterator& x, std::default_sentinel_t) noexcept { return x.is_end_; }
+    friend constexpr bool operator<(const iterator& x, const iterator& y)
+        requires std::ranges::random_access_range<Base>
+    {
+        return x.current_ < y.current_ || (!x.is_end_ && y.is_end_);
+    }
+    friend constexpr bool operator>(const iterator& x, const iterator& y)
+        requires std::ranges::random_access_range<Base>
+    {
+        return y < x;
+    }
+    friend constexpr bool operator<=(const iterator& x, const iterator& y)
+        requires std::ranges::random_access_range<Base>
+    {
+        return !(y < x);
+    }
+    friend constexpr bool operator>=(const iterator& x, const iterator& y)
+        requires std::ranges::random_access_range<Base>
+    {
+        return !(x < y);
+    }
+    friend constexpr auto operator<=>(const iterator& x, const iterator& y)
+        requires std::ranges::random_access_range<Base> && std::three_way_comparable<std::ranges::iterator_t<Base>>
+    {
+        if (x.is_end_ != y.is_end_)
+            return x.is_end_ <=> y.is_end_;
+        return x.current_ <=> y.current_;
+    }
+
+    friend constexpr iterator operator+(iterator i, difference_type n)
+        requires std::ranges::random_access_range<Base>
+    {
+        return iterator{i.current_ + n, i.last_, i.is_end_};
+    }
+    friend constexpr iterator operator+(difference_type n, iterator i)
+        requires std::ranges::random_access_range<Base>
+    {
+        return iterator{i.current_ + n, i.last_, i.is_end_};
+    }
+    friend constexpr iterator operator-(iterator i, difference_type n)
+        requires std::ranges::random_access_range<Base>
+    {
+        return iterator{i.current_ - n, i.last_, i.is_end_};
+    }
+    friend constexpr difference_type operator-(const iterator& x, const iterator& y)
+        requires std::sized_sentinel_for<std::ranges::iterator_t<Base>, std::ranges::iterator_t<Base>>
+    {
+        return x.current_ - y.current_;
+    }
+    friend constexpr difference_type operator-(const iterator& x, std::default_sentinel_t)
+        requires std::sized_sentinel_for<std::ranges::sentinel_t<Base>, std::ranges::iterator_t<Base>>
+    {
+        return x.current_ - x.last_;
+    }
+    friend constexpr difference_type operator-(std::default_sentinel_t, const iterator& x)
+        requires std::sized_sentinel_for<std::ranges::sentinel_t<Base>, std::ranges::iterator_t<Base>>
+    {
+        return x.last_ - x.current_;
+    }
+};
+
+template <class R>
+as_closed_view(R&&) -> as_closed_view<std::views::all_t<R>>;
+
+} // namespace ranges
+
+namespace detail {
+
+struct as_closed_t : range_adaptor_closure<as_closed_t> {
+    constexpr as_closed_t() = default;
+    constexpr auto operator()(std::ranges::input_range auto&& E) const { return ranges::as_closed_view(E); }
+};
+
+} // namespace detail
+
+inline constexpr detail::as_closed_t as_closed{};
+inline constexpr auto closed = [](auto&& E, auto&& F) { return ranges::as_closed_view(std::views::iota(E, F)); };
 
 } // namespace beman::closed_view
 

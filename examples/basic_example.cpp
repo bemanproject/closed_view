@@ -37,7 +37,7 @@ void println(auto&& rng) {
 
 // Example given in the paper for closed views. (Needs C++23)
 int main() {
-    /*println(views::iota(0, 5)); // [0, 1, 2, 3, 4]
+    println(views::iota(0, 5)); // [0, 1, 2, 3, 4]
     println(exe::closed(0, 5)); // [0, 1, 2, 3, 4, 5]
 
     int max = std::numeric_limits<int>::max();
@@ -47,8 +47,8 @@ int main() {
 
     // A range with 11 elements but calculating 12th element overflows
     auto weird = views::iota(0) | views::filter([](auto i) { return i < 11; });
-    // println(weird);                  // UB
-    println(weird | exe::as_closed); // fine, 0-10*/
+    // println(weird);                      // UB
+    println(weird | exe::lazy_take(11)); // fine, 0-10
 
     auto iss    = std::istringstream("0 1 2");
     auto weird2 = views::istream<int>(iss) | views::take(1);
