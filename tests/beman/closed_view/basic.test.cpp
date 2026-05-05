@@ -61,7 +61,9 @@ TEST(ClosedView, Iterator) {
     ASSERT_EQ(*it, 2);
     ASSERT_EQ(it, transformed.begin());
     ASSERT_EQ(it - transformed.begin(), 0);
+#if __cpp_lib_three_way_comparison >= 201907L
     ASSERT_EQ(it <=> transformed.begin(), std::strong_ordering::equal);
+#endif
     ASSERT_TRUE(it < transformed.end());
     ++it;
     ASSERT_EQ(*it, 3);
@@ -73,7 +75,9 @@ TEST(ClosedView, Iterator) {
     ++it;
     ASSERT_EQ(it, transformed.end());
     ASSERT_TRUE(it > transformed.begin());
+#if __cpp_lib_three_way_comparison >= 201907L
     ASSERT_EQ(it <=> transformed.begin(), std::strong_ordering::greater);
+#endif
     ASSERT_EQ(it - transformed.begin(), 3);
     it -= 1;
     ASSERT_EQ(*it, 4);
