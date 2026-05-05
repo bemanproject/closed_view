@@ -59,12 +59,13 @@ int main()
     std::println("{}", exe::closed_iota(max - 20, max)); // ok, includes max
 
     std::vector vec{1, 2, 3, 4, 5};
-    std::println("{}", exe::closed(vec.begin() + 2, vec.begin() + 4)); // [3, 4, 5]
+    std::println("{}", exe::as_closed(vec.begin() + 2, vec.begin() + 4)); // [3, 4, 5]
 
     // A range with 11 elements but calculating 12th element overflows
     auto weird = views::iota(0) | views::filter([](auto i) { return i < 11; });
     std::println("{}", weird); // UB
     std::println("{}", weird | exe::lazy_take(11)); // fine, 0-10
+    std::println("{}", weird | views::take(10) | exe::as_closed); // also fine, 0-10
 
     auto iss = std::istringstream("0 1 2");
     auto weird2 = views::istream<int>(iss) | views::take(1);

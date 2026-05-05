@@ -25,7 +25,7 @@ struct NonConstView : std::ranges::view_base {
 
 TEST(ClosedView, General) {
     std::vector<int> vec         = {1, 2, 3, 4};
-    auto             transformed = exe::closed(vec.begin() + 1, vec.begin() + 3);
+    auto             transformed = exe::as_closed(vec.begin() + 1, vec.begin() + 3);
     ASSERT_EQ(std::ranges::size(transformed), 3);
     int expected[] = {2, 3, 4};
     ASSERT_TRUE(std::ranges::equal(transformed, expected));
@@ -56,7 +56,7 @@ TEST(ClosedView, General) {
 
 TEST(ClosedView, Constexpr) {
     static constexpr std::array vec         = {1, 2, 3, 4};
-    static constexpr auto       transformed = exe::closed(vec.begin() + 1, vec.begin() + 3);
+    static constexpr auto       transformed = exe::as_closed(vec.begin() + 1, vec.begin() + 3);
     static_assert(std::ranges::distance(transformed.begin(), transformed.end()) == 3);
     static_assert(std::ranges::size(transformed) == 3);
     static constexpr std::array expected = {2, 3, 4};
@@ -83,7 +83,7 @@ TEST(ClosedView, Constexpr) {
 
 TEST(ClosedView, Properties) {
     std::vector<int> vec         = {1, 2, 3, 4};
-    auto             transformed = exe::closed(vec.begin() + 1, vec.begin() + 3);
+    auto             transformed = exe::as_closed(vec.begin() + 1, vec.begin() + 3);
     static_assert(std::is_same_v<std::ranges::range_value_t<decltype(transformed)>, int>);
     static_assert(std::is_same_v<std::ranges::range_reference_t<decltype(transformed)>, int&>);
     static_assert(std::ranges::random_access_range<decltype(transformed)>);
@@ -176,8 +176,9 @@ TEST(ClosedView, MoveOnly) {
     auto out2 = exe::lazy_counted(vec4.begin(), 2) | std::views::transform([](const auto& p) { return *p; });
     ASSERT_TRUE(std::ranges::equal(out2, check));
 
-    auto out3 = exe::closed(vec4.begin(), vec4.begin() + 2) | std::views::transform([](const auto& p) { return *p; });
-    int  check2[] = {5, 2, 10};
+    auto out3 =
+        exe::as_closed(vec4.begin(), vec4.begin() + 2) | std::views::transform([](const auto& p) { return *p; });
+    int check2[] = {5, 2, 10};
     ASSERT_TRUE(std::ranges::equal(out3, check2));
 }
 #endif

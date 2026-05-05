@@ -622,7 +622,7 @@ inline constexpr detail::lazy_take_t lazy_take{};
 namespace ranges {
 
 template <std::input_iterator I, std::sentinel_for<I> S>
-class closed_view : public std::ranges::view_interface<closed_view<I, S>> {
+class as_closed_view : public std::ranges::view_interface<as_closed_view<I, S>> {
   private:
     // [range.as.closed.iterator], class iota_view::iterator
     class iterator; // exposition only
@@ -631,13 +631,13 @@ class closed_view : public std::ranges::view_interface<closed_view<I, S>> {
     S end_   = S(); // exposition only
 
   public:
-    closed_view()
+    as_closed_view()
         requires std::default_initializable<I>
     = default;
     template <typename R>
         requires std::same_as<std::ranges::iterator_t<R>, I> && std::same_as<std::ranges::sentinel_t<R>, S>
-    constexpr explicit closed_view(R&& r) : start_(std::ranges::begin(r)), end_(std::ranges::end(r)) {}
-    constexpr closed_view(I start, S end) : start_(std::move(start)), end_(std::move(end)) {}
+    constexpr explicit as_closed_view(R&& r) : start_(std::ranges::begin(r)), end_(std::ranges::end(r)) {}
+    constexpr as_closed_view(I start, S end) : start_(std::move(start)), end_(std::move(end)) {}
 
     constexpr iterator begin() const { return iterator{start_, end_}; }
 
@@ -656,7 +656,7 @@ class closed_view : public std::ranges::view_interface<closed_view<I, S>> {
 };
 
 template <std::input_iterator I, std::sentinel_for<I> S>
-class closed_view<I, S>::iterator : detail::category_base_all<I> {
+class as_closed_view<I, S>::iterator : detail::category_base_all<I> {
   private:
     I    current_ = I();   // exposition only
     S    last_    = S();   // exposition only
@@ -666,7 +666,7 @@ class closed_view<I, S>::iterator : detail::category_base_all<I> {
         : current_(std::move(current)), last_(std::move(last)), is_end_(is_end) {}
 
   public:
-    friend closed_view;
+    friend as_closed_view;
 
     using iterator_concept = std::conditional_t<
         std::random_access_iterator<I>,
@@ -807,7 +807,7 @@ class closed_view<I, S>::iterator : detail::category_base_all<I> {
 };
 
 template <class R>
-closed_view(R&&) -> closed_view<std::ranges::iterator_t<R>, std::ranges::sentinel_t<R>>;
+as_closed_view(R&&) -> as_closed_view<std::ranges::iterator_t<R>, std::ranges::sentinel_t<R>>;
 
 } // namespace ranges
 
@@ -815,22 +815,26 @@ namespace detail {
 
 struct as_closed_t : range_adaptor_closure<as_closed_t> {
     constexpr as_closed_t() = default;
-    constexpr auto operator()(std::ranges::input_range auto&& E) const { return ranges::closed_view(E); }
+    constexpr auto operator()(std::ranges::input_range auto&& E) const {
+        return ranges::as_closed_view(std::forward<decltype(E)>(E));
+    }
+    constexpr auto operator()(auto&& E, auto&& F) const {
+        return ranges::as_closed_view(std::forward<decltype(E)>(E), std::forward<decltype(F)>(F));
+    }
 };
 
 } // namespace detail
 
 inline constexpr detail::as_closed_t as_closed{};
-inline constexpr auto                closed = [](auto&& E, auto&& F) { return ranges::closed_view(E, F); };
-inline constexpr auto closed_iota = [](auto&& E, auto&& F) { return ranges::closed_view(std::views::iota(E, F)); };
+inline constexpr auto closed_iota = [](auto&& E, auto&& F) { return ranges::as_closed_view(std::views::iota(E, F)); };
 
 } // namespace beman::closed_view
 
-// Enable borrowed for lazy_take and closed_view
+// Enable borrowed for lazy_take and as_closed_view
 template <class T>
 constexpr bool std::ranges::enable_borrowed_range<beman::closed_view::ranges::lazy_take_view<T>> =
     std::ranges::enable_borrowed_range<T>;
 template <class I, class S>
-constexpr bool std::ranges::enable_borrowed_range<beman::closed_view::ranges::closed_view<I, S>> = true;
+constexpr bool std::ranges::enable_borrowed_range<beman::closed_view::ranges::as_closed_view<I, S>> = true;
 
 #endif // BEMAN_CLOSED_VIEW_CLOSED_HPP

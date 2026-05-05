@@ -46,8 +46,8 @@ int main() {
     for (int i = 1; i <= 100; ++i)
         vec.push_back(distrib(eng));
     std::cout << "Before: Element 5 - 25: ";
-    println(exe::closed(&vec[4], &vec[24]));
-    ranges::sort(exe::closed(vec.begin() + 9, vec.begin() + 19));
+    println(exe::as_closed(&vec[4], &vec[24]));
+    ranges::sort(exe::as_closed(vec.begin() + 9, vec.begin() + 19));
     std::cout << "After: Element 5 - 25: ";
-    println(exe::closed(&vec[4], &vec[24]));
+    println(exe::as_closed(&vec[4], &vec[24]));
 }
