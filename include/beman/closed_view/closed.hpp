@@ -278,7 +278,10 @@ struct category_base_all {};
 template <typename I>
     requires std::derived_from<typename std::iterator_traits<I>::iterator_category, std::forward_iterator_tag>
 struct category_base_all<I> {
-    using iterator_category = std::iterator_traits<I>::iterator_category;
+    using iterator_category = std::conditional_t<
+        std::derived_from<std::contiguous_iterator_tag, typename std::iterator_traits<I>::iterator_category>,
+        std::random_access_iterator_tag,
+        typename std::iterator_traits<I>::iterator_category>;
 };
 
 template <typename T>
@@ -362,11 +365,6 @@ class lazy_counted_iterator : public detail::category_base<I> {
         requires detail::dereferenceable<const I>
     {
         return *current;
-    }
-    constexpr auto operator->() const noexcept
-        requires std::contiguous_iterator<I>
-    {
-        return std::to_address(current);
     }
 
     constexpr lazy_counted_iterator& operator++() {
@@ -657,7 +655,7 @@ class as_closed_view : public std::ranges::view_interface<as_closed_view<I, S>> 
     as_closed_view()
         requires std::default_initializable<I>
     = default;
-    template <typename R>
+    template <std::ranges::range R>
         requires std::same_as<std::ranges::iterator_t<R>, I> && std::same_as<std::ranges::sentinel_t<R>, S>
     constexpr explicit as_closed_view(R&& r) : start_(std::ranges::begin(r)), end_(std::ranges::end(r)) {}
     constexpr as_closed_view(I start, S end) : start_(std::move(start)), end_(std::move(end)) {}
@@ -671,7 +669,8 @@ class as_closed_view : public std::ranges::view_interface<as_closed_view<I, S>> 
         return iterator{end_, end_, true};
     }
 
-    constexpr auto size() const
+    [[nodiscard]] constexpr bool empty() const { return false; }
+    constexpr auto               size() const
         requires std::sized_sentinel_for<S, I>
     {
         return end_ - start_ + 1;

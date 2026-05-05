@@ -59,19 +59,31 @@ TEST(ClosedView, Iterator) {
     auto             transformed = exe::as_closed(vec.begin() + 1, vec.begin() + 3);
     auto             it          = transformed.begin();
     ASSERT_EQ(*it, 2);
+    ASSERT_EQ(it, transformed.begin());
+    ASSERT_EQ(it - transformed.begin(), 0);
+    ASSERT_EQ(it <=> transformed.begin(), std::strong_ordering::equal);
+    ASSERT_TRUE(it < transformed.end());
     ++it;
     ASSERT_EQ(*it, 3);
+    ASSERT_EQ(it - transformed.begin(), 1);
     ++it;
     ASSERT_EQ(*it, 4);
+    ASSERT_EQ(it - transformed.begin(), 2);
     ASSERT_NE(it, transformed.end());
     ++it;
     ASSERT_EQ(it, transformed.end());
+    ASSERT_TRUE(it > transformed.begin());
+    ASSERT_EQ(it <=> transformed.begin(), std::strong_ordering::greater);
+    ASSERT_EQ(it - transformed.begin(), 3);
     it -= 1;
     ASSERT_EQ(*it, 4);
+    ASSERT_EQ(it - transformed.begin(), 2);
     it -= 2;
     ASSERT_EQ(*it, 2);
+    ASSERT_EQ(it - transformed.begin(), 0);
     it += 3;
     ASSERT_EQ(it, transformed.end());
+    ASSERT_EQ(it - transformed.begin(), 3);
 }
 
 TEST(ClosedView, Constexpr) {
