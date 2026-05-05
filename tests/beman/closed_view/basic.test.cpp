@@ -54,6 +54,26 @@ TEST(ClosedView, General) {
     ASSERT_TRUE(std::ranges::equal(ct4, expected4));
 }
 
+TEST(ClosedView, Iterator) {
+    std::vector<int> vec         = {1, 2, 3, 4};
+    auto             transformed = exe::as_closed(vec.begin() + 1, vec.begin() + 3);
+    auto             it          = transformed.begin();
+    ASSERT_EQ(*it, 2);
+    ++it;
+    ASSERT_EQ(*it, 3);
+    ++it;
+    ASSERT_EQ(*it, 4);
+    ASSERT_NE(it, transformed.end());
+    ++it;
+    ASSERT_EQ(it, transformed.end());
+    it -= 1;
+    ASSERT_EQ(*it, 4);
+    it -= 2;
+    ASSERT_EQ(*it, 2);
+    it += 3;
+    ASSERT_EQ(it, transformed.end());
+}
+
 TEST(ClosedView, Constexpr) {
     static constexpr std::array vec         = {1, 2, 3, 4};
     static constexpr auto       transformed = exe::as_closed(vec.begin() + 1, vec.begin() + 3);

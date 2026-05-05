@@ -323,6 +323,11 @@ struct empty_traits<std::ranges::iota_view<W, Bound>> {
     static constexpr bool is_specialized = true;
 };
 
+template <typename T>
+auto to_unsigned_like(T t) {
+    return std::make_unsigned_t<T>(t);
+}
+
 } // namespace detail
 
 template <std::input_iterator I>
@@ -541,6 +546,24 @@ class lazy_take_view : public std::ranges::view_interface<lazy_take_view<V>> {
         auto n = std::ranges::size(base_);
         return std::ranges::min(n, static_cast<decltype(n)>(count_));
     }
+
+#if __cpp_lib_ranges_reserve_hint >= 202502L
+    constexpr auto reserve_hint() {
+        if constexpr (std::ranges::approximately_sized_range<V>) {
+            auto n = static_cast<std::ranges::range_difference_t<V>>(std::ranges::reserve_hint(base_));
+            return detail::to_unsigned_like(std::ranges::min(n, count_));
+        }
+        return detail::to_unsigned_like(count_);
+    }
+
+    constexpr auto reserve_hint() const {
+        if constexpr (std::ranges::approximately_sized_range<const V>) {
+            auto n = static_cast<std::ranges::range_difference_t<const V>>(std::ranges::reserve_hint(base_));
+            return detail::to_unsigned_like(std::ranges::min(n, count_));
+        }
+        return detail::to_unsigned_like(count_);
+    }
+#endif
 };
 
 template <class R>
@@ -720,12 +743,20 @@ class as_closed_view<I, S>::iterator : detail::category_base_all<I> {
     constexpr iterator& operator+=(difference_type n)
         requires std::random_access_iterator<I>
     {
-        current_ += n;
+        if (n >= 1 && current_ + (n - 1) == last_) {
+            current_ += n - 1;
+            is_end_ = true;
+        } else
+            current_ += n;
         return *this;
     }
     constexpr iterator& operator-=(difference_type n)
         requires std::random_access_iterator<I>
     {
+        if (is_end_ && n >= 1) {
+            is_end_ = false;
+            --n;
+        }
         current_ -= n;
         return *this;
     }
@@ -777,17 +808,17 @@ class as_closed_view<I, S>::iterator : detail::category_base_all<I> {
     friend constexpr iterator operator+(iterator i, difference_type n)
         requires std::random_access_iterator<I>
     {
-        return iterator{i.current_ + n, i.last_, i.is_end_};
+        return i += n;
     }
     friend constexpr iterator operator+(difference_type n, iterator i)
         requires std::random_access_iterator<I>
     {
-        return iterator{i.current_ + n, i.last_, i.is_end_};
+        return i += n;
     }
     friend constexpr iterator operator-(iterator i, difference_type n)
         requires std::random_access_iterator<I>
     {
-        return iterator{i.current_ - n, i.last_, i.is_end_};
+        return i -= n;
     }
     friend constexpr difference_type operator-(const iterator& x, const iterator& y)
         requires std::sized_sentinel_for<S, I>
