@@ -114,6 +114,8 @@ You can disable building tests by setting CMake option `BEMAN_CLOSED_VIEW_BUILD_
 | AppleClang | latest  | C++26-C++20   | libc++            |
 | MSVC       | latest  | C++23         | MSVC STL          |
 
+- **Note**: module support is only available in Clang for now; GCC 16 somehow ICEs when compiling with modules.
+
 ## Development
 
 See the [Contributing Guidelines](CONTRIBUTING.md).
