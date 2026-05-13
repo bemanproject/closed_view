@@ -1,11 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <algorithm>
-#include <array>
-#include <functional>
-#include <vector>
+#include <beman/closed_view/config.hpp>
 
 #include <gtest/gtest.h>
+
+#if BEMAN_CLOSED_VIEW_USE_MODULES()
+
+import std;
+
+#else
+
+    #include <algorithm>
+    #include <array>
+    #include <functional>
+    #include <vector>
+
+#endif
 
 #include <beman/closed_view/closed.hpp>
 

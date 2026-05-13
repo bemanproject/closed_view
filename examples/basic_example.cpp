@@ -1,11 +1,23 @@
-#include <iostream>
-#include <limits>
-#include <sstream>
-#include <ranges>
-#include <vector>
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#if __cpp_lib_print >= 202207L
-    #include <print>
+#include <beman/closed_view/config.hpp>
+
+#if BEMAN_CLOSED_VIEW_USE_MODULES()
+
+import std;
+
+#else
+
+    #include <iostream>
+    #include <limits>
+    #include <sstream>
+    #include <ranges>
+    #include <vector>
+
+    #if __cpp_lib_print >= 202207L
+        #include <print>
+    #endif
+
 #endif
 
 #include <beman/closed_view/closed.hpp>

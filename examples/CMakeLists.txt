@@ -10,4 +10,10 @@ foreach(example ${ALL_EXAMPLES})
         beman.closed_view.examples.${example}
         PRIVATE beman::closed_view
     )
+    if(BEMAN_CLOSED_VIEW_USE_MODULES)
+        set_target_properties(
+            beman.closed_view.examples.${example}
+            PROPERTIES CXX_MODULE_STD ON
+        )
+    endif()
 endforeach()
