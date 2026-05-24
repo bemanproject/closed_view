@@ -4,8 +4,13 @@
 SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 -->
 
-<!-- markdownlint-disable-next-line line-length -->
-![Library Status](https://raw.githubusercontent.com/bemanproject/beman/refs/heads/main/images/badges/beman_badge-beman_library_under_development.svg) ![Continuous Integration Tests](https://github.com/bemanproject/closed_view/actions/workflows/ci_tests.yml/badge.svg) ![Lint Check (pre-commit)](https://github.com/bemanproject/closed_view/actions/workflows/pre-commit-check.yml/badge.svg) [![Coverage](https://coveralls.io/repos/github/bemanproject/closed_view/badge.svg?branch=main)](https://coveralls.io/github/bemanproject/closed_view?branch=main) ![Standard Target](https://github.com/bemanproject/beman/blob/main/images/badges/cpp29.svg)
+<!-- markdownlint-disable line-length -->
+[![Library Status](https://raw.githubusercontent.com/bemanproject/beman/refs/heads/main/images/badges/beman_badge-beman_library_under_development.svg)](https://github.com/bemanproject/beman/blob/main/docs/beman_library_maturity_model.md#the-beman-library-maturity-model)
+[![Continuous Integration Tests](https://github.com/bemanproject/closed_view/actions/workflows/ci_tests.yml/badge.svg)](https://github.com/bemanproject/closed_view/actions/workflows/ci_tests.yml)
+[![Lint Check (pre-commit)](https://github.com/bemanproject/closed_view/actions/workflows/pre-commit-check.yml/badge.svg)](https://github.com/bemanproject/closed_view/actions/workflows/pre-commit-check.yml)
+[![Coverage](https://coveralls.io/repos/github/bemanproject/closed_view/badge.svg?branch=main)](https://coveralls.io/github/bemanproject/closed_view?branch=main)
+![Standard Target](https://github.com/bemanproject/beman/blob/main/images/badges/cpp29.svg)
+<!-- markdownlint-restore -->
 
 **Implements**: Range adaptor and iterators proposed in [Adaptors For Closed Ranges (P4211R0)](https://wg21.link/P4211R0).
 
@@ -209,9 +214,3 @@ include an appropriate `beman.closed_view` header from your source code.
 ```c++
 #include <beman/closed_view/closed.hpp>
 ```
-
-> [!NOTE]
->
-> `beman.closed_view` headers are to be included with the `beman/closed_view/` prefix.
-> Altering include search paths to spell the include target another way (e.g.
-> `#include <closed.hpp>`) is unsupported.
