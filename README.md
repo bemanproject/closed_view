@@ -10,6 +10,7 @@ SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 [![Lint Check (pre-commit)](https://github.com/bemanproject/closed_view/actions/workflows/pre-commit-check.yml/badge.svg)](https://github.com/bemanproject/closed_view/actions/workflows/pre-commit-check.yml)
 [![Coverage](https://coveralls.io/repos/github/bemanproject/closed_view/badge.svg?branch=main)](https://coveralls.io/github/bemanproject/closed_view?branch=main)
 ![Standard Target](https://github.com/bemanproject/beman/blob/main/images/badges/cpp29.svg)
+[![Compiler Explorer Example](https://img.shields.io/badge/Try%20it%20on%20Compiler%20Explorer-grey?logo=compilerexplorer&logoColor=67c52a)](https://godbolt.org/z/zdEKKG4cq)
 <!-- markdownlint-restore -->
 
 **Implements**: Range adaptor and iterators proposed in [Adaptors For Closed Ranges (P4211R0)](https://wg21.link/P4211R0).
@@ -80,13 +81,13 @@ int main()
     auto weird2 = views::istream<int>(iss) | views::take(1);
     std::println("{}", weird2); // fine, [0]
     auto i = 0; iss >> i;
-    // now i = 2 (!)
+    std::println("{}", i); // now i = 2 (!)
 
     auto iss2 = std::istringstream("0 1 2");
-    auto ok2 = views::istream<int>(iss) | exe::lazy_take(1);
+    auto ok2 = views::istream<int>(iss2) | exe::lazy_take(1);
     std::println("{}", ok2); // fine, [0]
     auto i2 = 0; iss2 >> i2;
-    // now i2 = 1 as expected
+    std::println("{}", i2); // now i2 = 1 as expected
 
     return 0;
 }
