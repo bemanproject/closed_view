@@ -9,6 +9,7 @@ if(BEMAN_CLOSED_VIEW_USE_MODULES)
                 FILES
                     config.hpp
                     closed.hpp
+                    detail/expo_only.hpp
                     "${PROJECT_BINARY_DIR}/include/beman/closed_view/config_generated.hpp"
     )
 else()
@@ -19,6 +20,7 @@ else()
                 FILES
                     config.hpp
                     closed.hpp
+                    detail/expo_only.hpp
                     "${PROJECT_BINARY_DIR}/include/beman/closed_view/config_generated.hpp"
     )
 endif()
