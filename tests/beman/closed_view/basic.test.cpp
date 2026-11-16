@@ -3,6 +3,7 @@
 #include <beman/closed_view/config.hpp>
 
 #include <gtest/gtest.h>
+#include <memory>
 
 #if BEMAN_CLOSED_VIEW_USE_MODULES()
 
